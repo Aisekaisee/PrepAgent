@@ -16,7 +16,6 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "baseUrl": "./src",
     "paths": {
       "@/*": [
         "./src/*"
