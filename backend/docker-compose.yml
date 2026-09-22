@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: prepagent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: prepagent
+      POSTGRES_PASSWORD: prepagent_password
+      POSTGRES_DB: prepagent
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  chroma:
+    image: chromadb/chroma
+    container_name: prepagent-chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/data
+
+volumes:
+  postgres_data:
+  chroma_data:
