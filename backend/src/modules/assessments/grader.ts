@@ -15,7 +15,7 @@ export function gradeMcq(
         selectedOption?: string;
     }
 ): GradeResult {
-    const expected = question.answerKey?.correct_option;
+    const expected = question.answerKey?.correct_option || (question.answerKey as any)?.correctOption;
     const isCorrect =
         Boolean(expected) &&
         Boolean(studentAnswer?.selectedOption) &&

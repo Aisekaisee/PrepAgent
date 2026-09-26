@@ -28,7 +28,7 @@ export async function nextQuestion(
 ): Promise<void> {
     try {
         const userId = req.user!.userId;
-        const { id: sessionId } = req.params;
+        const sessionId = String(req.params.id);
 
         const question = await assessmentService.getNextQuestion(sessionId, userId);
 
@@ -48,7 +48,7 @@ export async function answer(
 ): Promise<void> {
     try {
         const userId = req.user!.userId;
-        const { id: sessionId } = req.params;
+        const sessionId = String(req.params.id);
         const { questionId, answer: studentAnswer } = req.body;
 
         const result = await assessmentService.submitAnswer(
@@ -74,7 +74,7 @@ export async function submit(
 ): Promise<void> {
     try {
         const userId = req.user!.userId;
-        const { id: sessionId } = req.params;
+        const sessionId = String(req.params.id);
 
         const result = await assessmentService.finalizeSession(sessionId, userId);
 

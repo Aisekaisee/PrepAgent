@@ -3,8 +3,19 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 
+/* ═══════════════════════════════════════════════════
+   DESIGN SYSTEM — Premium Minimalist Light Mode
+   Dominant: Pure White (#FFFFFF) & Pale Grey (#F8F9FA)
+   Structure & Text: Deep Slate Charcoal (#1E293B)
+   Accent Green: Emerald (#10B981)
+   Accent Orange: Amber (#F59E0B)
+   Borders: Crisp Slate (#E2E8F0)
+   ═══════════════════════════════════════════════════ */
+
 @theme {
+  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -29,39 +40,62 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 :root {
-  --background: #090d16;
-  --foreground: #f8fafc;
-  --card: #0f172a;
-  --card-foreground: #f8fafc;
-  --popover: #0f172a;
-  --popover-foreground: #f8fafc;
-  --primary: #3b82f6;
+  /* ── Canvas & Backgrounds (The Pale-White Shift) ── */
+  --background: #f8f9fa;
+  --foreground: #1e293b;
+
+  /* ── Panels & Cards: Solid Pure White ── */
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
+
+  /* ── Structure & Muted Elements ── */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+
+  /* ── Strict 4-Color Palette Accents ── */
+  --primary: #1e293b;
   --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #2563eb;
+  --accent: #10b981;
   --accent-foreground: #ffffff;
+
+  /* ── Structural & Functional ── */
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #3b82f6;
-  --radius: 0.625rem;
-  --chart-1: #3b82f6;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #94a3b8;
+  --radius: 8px;
+
+  /* ── Chart Colors ── */
+  --chart-1: #1e293b;
   --chart-2: #10b981;
   --chart-3: #f59e0b;
-  --chart-4: #8b5cf6;
-  --chart-5: #ec4899;
+  --chart-4: #3b82f6;
+  --chart-5: #64748b;
+
+  /* ── Custom Soft Shadows ── */
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
 }
+
+/* ═══════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
@@ -70,20 +104,67 @@ body {
   color: var(--foreground);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Plus Jakarta Sans', 'Inter Variable', -apple-system, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: #1e293b;
+  line-height: 1.25;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* ═══════════════════════════════════════════════════
+   MICRO-INTERACTIONS & UTILITIES
+   ═══════════════════════════════════════════════════ */
+
+/* Hover Lift for Cards and Container Panels */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+  border-color: #cbd5e1;
+}
+
+/* Solid Clean Badges & Highlights */
+.badge-emerald {
+  background-color: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-amber {
+  background-color: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.badge-slate {
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+/* Clean High-Contrast Text */
+.text-slate-primary { color: #1e293b; }
+.text-slate-muted { color: #64748b; }
+.text-emerald-accent { color: #10b981; }
+.text-amber-accent { color: #f59e0b; }
+
+/* Custom Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
+  background: #cbd5e1;
+  border-radius: 8px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+::selection {
+  background: #e2e8f0;
+  color: #1e293b;
 }

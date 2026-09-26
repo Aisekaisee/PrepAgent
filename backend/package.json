@@ -8,13 +8,18 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "migrate:up": "node-pg-migrate -m src/db/migrations up",
-    "migrate:down": "node-pg-migrate -m src/db/migrations down"
+    "migrate:down": "node-pg-migrate -m src/db/migrations down",
+    "ingest:resources": "tsx src/scripts/ingestResources.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@langchain/core": "^1.2.12",
+    "@langchain/google-genai": "^2.3.2",
+    "@langchain/langgraph": "^1.4.17",
+    "@langchain/openai": "^1.5.13",
     "@sentry/node": "^10.75.1",
     "bcrypt": "^6.0.0",
     "chromadb": "^3.5.0",
@@ -26,6 +31,7 @@
     "helmet": "^8.3.0",
     "jest": "^30.5.2",
     "jsonwebtoken": "^9.0.3",
+    "langchain": "^1.5.12",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
@@ -41,9 +47,9 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
+    "nodemon": "^3.1.14",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.23.15",
-    "nodemon": "^3.1.14",
     "typescript": "^7.0.2"
   }
 }

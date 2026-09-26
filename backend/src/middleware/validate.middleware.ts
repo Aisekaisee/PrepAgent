@@ -9,16 +9,16 @@ import type { ZodSchema } from "zod";
 import { AppError } from "../utils/AppError.js";
 
 export function validate(
-    schema: ZodSchema
+    schema: ZodSchema,
+    source: "body" | "query" = "body"
 ) {
     return (
         req: Request,
         _res: Response,
         next: NextFunction
     ) => {
-        const result = schema.safeParse(
-            req.body
-        );
+        const input = source === "query" ? req.query : req.body;
+        const result = schema.safeParse(input);
 
         if (!result.success) {
             throw new AppError(
@@ -28,7 +28,12 @@ export function validate(
             );
         }
 
-        req.body = result.data;
+        if (source === "query") {
+            // Attach parsed/coerced query values back onto req.query
+            Object.assign(req.query, result.data);
+        } else {
+            req.body = result.data;
+        }
 
         next();
     };
