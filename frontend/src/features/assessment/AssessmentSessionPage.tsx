@@ -57,6 +57,9 @@ export function AssessmentSessionPage() {
         const q = await assessmentApi.getNextQuestion(sessionId);
         if (q) {
           setQuestion(q);
+          if (q.questionNumber) {
+            setQuestionNumber(q.questionNumber);
+          }
           setSelectedOption(null);
           setCodeAnswer(q.content.codeTemplate || "");
           setFeedback(null);

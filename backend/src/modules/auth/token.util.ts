@@ -7,10 +7,12 @@ import type { TokenPair } from "./auth.types.js";
 interface AccessTokenPayload {
     sub: string;
     role: string;
+    jti?: string;
 }
 
 interface RefreshTokenPayload {
     sub: string;
+    jti?: string;
 }
 export function hashToken(token: string): string {
     return crypto
@@ -25,7 +27,8 @@ export function generateAccessToken(
 ): string {
     const payload: AccessTokenPayload = {
         sub: userId,
-        role
+        role,
+        jti: crypto.randomUUID()
     };
 
     return jwt.sign(
@@ -41,7 +44,8 @@ export function generateRefreshToken(
     userId: string
 ): string {
     const payload: RefreshTokenPayload = {
-        sub: userId
+        sub: userId,
+        jti: crypto.randomUUID()
     };
 
     return jwt.sign(

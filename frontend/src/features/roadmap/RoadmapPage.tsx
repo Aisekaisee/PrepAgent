@@ -8,6 +8,10 @@ import {
   ArrowRight,
   Filter,
   Loader2,
+  Calendar,
+  Building2,
+  Settings2,
+  Code2,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,12 +19,66 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { EmptyState } from "@/components/common/EmptyState";
 import { RoadmapGeneratorModal } from "./components/RoadmapGeneratorModal";
 import { roadmapApi } from "./api/roadmapApi";
-import type { Roadmap, RoadmapItemStatus } from "@/types/roadmap";
+import { profileApi } from "../profile/api/profileApi";
+import type { Roadmap, RoadmapItemStatus, StudyMaterial, PracticeProblem } from "@/types/roadmap";
+import type { Profile } from "@/types/profile";
+
+function getFallbackResources(topic: string, targetCompany?: string): {
+  studyMaterial: StudyMaterial[];
+  practiceProblems: PracticeProblem[];
+} {
+  const enc = encodeURIComponent(topic);
+  const comp = encodeURIComponent(targetCompany || "Google");
+  return {
+    studyMaterial: [
+      {
+        title: `${topic} Complete Concepts & Guide`,
+        url: `https://www.geeksforgeeks.org/${enc.toLowerCase()}/`,
+        platform: "GeeksforGeeks",
+        type: "Article",
+      },
+      {
+        title: "NeetCode Placement Patterns & Solutions",
+        url: "https://neetcode.io/practice",
+        platform: "NeetCode",
+        type: "Interactive Guide",
+      },
+      {
+        title: "System Design Primer & Architecture",
+        url: "https://github.com/donnemartin/system-design-primer",
+        platform: "GitHub",
+        type: "Documentation",
+      },
+    ],
+    practiceProblems: [
+      {
+        title: `${topic} Curated Problem Set`,
+        url: `https://leetcode.com/problemset/all/?search=${enc}`,
+        platform: "LeetCode",
+        difficulty: "Medium",
+      },
+      {
+        title: `${targetCompany || "Tier-1 Tech"} Interview Challenges`,
+        url: `https://leetcode.com/problemset/all/?search=${comp}`,
+        platform: "LeetCode",
+        difficulty: "Hard",
+      },
+      {
+        title: `HackerRank ${topic} Challenges`,
+        url: "https://www.hackerrank.com/domains/algorithms",
+        platform: "HackerRank",
+        difficulty: "Medium",
+      },
+    ],
+  };
+}
 
 export function RoadmapPage() {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -28,8 +86,14 @@ export function RoadmapPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await roadmapApi.getActiveRoadmap();
-        setRoadmap(data);
+        const [roadmapData, profileData] = await Promise.all([
+          roadmapApi.getActiveRoadmap(),
+          profileApi.getProfile().catch(() => null),
+        ]);
+        setRoadmap(roadmapData);
+        if (profileData) {
+          setProfile(profileData);
+        }
       } finally {
         setLoading(false);
       }
@@ -66,16 +130,40 @@ export function RoadmapPage() {
   const completedCount = items.filter((i) => i.status === "completed").length;
   const percentComplete = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
 
+  // Dynamically determine currently active milestone
+  const activeItem =
+    items.find((i) => i.status === "started") ||
+    items.find((i) => i.status === "pending");
+
+  const activeMilestoneDisplay = activeItem
+    ? `Week ${activeItem.weekNo}`
+    : items.length > 0 && completedCount === items.length
+      ? "Completed 🎉"
+      : "Not Started";
+
+  const activeMilestoneSubtext = activeItem
+    ? activeItem.status === "started"
+      ? "(In Progress)"
+      : "(Next Up)"
+    : items.length > 0 && completedCount === items.length
+      ? "(All Done)"
+      : "(Pending)";
+
   const filteredItems =
     statusFilter === "all"
       ? items
       : items.filter((i) => i.status === statusFilter);
 
+  const prepTimeWeeks = profile?.timelineWeeks || roadmap?.weeks?.length || items.length || 8;
+  const targetCompanies = profile?.targetCompanies || [];
+  const technicalSubjects = profile?.technicalSubjects || [];
+  const programmingSkills = profile?.programmingSkills || [];
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
       <PageHeader
         title="AI-Generated Learning Roadmap"
-        description="Structured, week-by-week placement curriculum tailored specifically to your diagnostic skill gaps and target companies."
+        description="Structured, week-by-week placement curriculum generated by Gemini AI tailored to your preparation timeline, target companies, and subjects."
         badge={
           <Badge variant="purple" className="gap-1">
             <Sparkles className="h-3 w-3" /> LangGraph Agent v{roadmap?.version || 1}
@@ -88,43 +176,102 @@ export function RoadmapPage() {
             className="gap-2 shadow-md shadow-indigo-500/20"
           >
             <Sparkles className="h-4 w-4" />
-            <span>Regenerate with AI (SSE)</span>
+            <span>{roadmap ? "Regenerate with AI (SSE)" : "Generate AI Roadmap"}</span>
           </Button>
         }
       />
 
-      {/* Velocity and Progress Banner */}
-      <Card className="bg-gradient-to-r from-card via-card to-blue-950/20 border-border/80">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground font-medium">Roadmap Progress</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-foreground">{percentComplete}%</span>
-                <span className="text-xs text-emerald-400 font-semibold">On Pace</span>
+      {/* Student Profile Alignment Card */}
+      <Card className="bg-card/70 border-border/80 backdrop-blur-sm">
+        <CardContent className="p-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-3 flex-1">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                <span>Roadmap Configured to Student Profile:</span>
               </div>
-              <Progress value={percentComplete} className="h-2 mt-2" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                {/* Preparation Time */}
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 shrink-0">
+                    <Calendar className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">
+                      Preparation Time
+                    </span>
+                    <span className="font-semibold text-foreground text-sm">
+                      {prepTimeWeeks} Weeks Horizon
+                    </span>
+                  </div>
+                </div>
+
+                {/* Target Companies */}
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 shrink-0">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">
+                      Target Companies
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {targetCompanies.length > 0 ? (
+                        targetCompanies.map((c) => (
+                          <Badge
+                            key={c}
+                            variant="purple"
+                            className="text-[10px] py-0 px-2 font-normal"
+                          >
+                            {c}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground italic">None specified</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Core Subjects */}
+                <div className="flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 shrink-0">
+                    <BookOpen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-muted-foreground block font-medium">
+                      Subjects & Languages
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {[...technicalSubjects, ...programmingSkills].slice(0, 4).map((s) => (
+                        <Badge
+                          key={s}
+                          variant="secondary"
+                          className="text-[10px] py-0 px-2 font-normal"
+                        >
+                          {s}
+                        </Badge>
+                      ))}
+                      {[...technicalSubjects, ...programmingSkills].length > 4 && (
+                        <span className="text-[10px] text-muted-foreground self-center">
+                          +{([...technicalSubjects, ...programmingSkills].length - 4)} more
+                        </span>
+                      )}
+                      {[...technicalSubjects, ...programmingSkills].length === 0 && (
+                        <span className="text-muted-foreground italic">None specified</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground font-medium">Completed Milestones</span>
-              <p className="text-2xl font-bold text-foreground">
-                {completedCount} <span className="text-xs text-muted-foreground font-normal">of {items.length} Weeks</span>
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground font-medium">Currently Active</span>
-              <p className="text-2xl font-bold text-blue-400">
-                Week 2 <span className="text-xs text-muted-foreground font-normal">(In Progress)</span>
-              </p>
-            </div>
-
-            <div className="flex justify-end">
-              <Link to="/reports">
-                <Button variant="outline" size="sm" className="gap-1 text-xs">
-                  <span>View Progress Report</span>
-                  <ArrowRight className="h-3 w-3" />
+            <div className="shrink-0 flex items-center md:self-center border-t md:border-t-0 md:border-l border-border/60 pt-3 md:pt-0 md:pl-4">
+              <Link to="/profile">
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                  <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Edit Profile</span>
                 </Button>
               </Link>
             </div>
@@ -132,128 +279,289 @@ export function RoadmapPage() {
         </CardContent>
       </Card>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-semibold text-slate-300">Filter Milestones:</span>
-        </div>
-
-        <div className="flex gap-1.5">
-          {["all", "started", "completed", "pending"].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1 rounded-lg text-xs capitalize transition-colors cursor-pointer border ${
-                statusFilter === st
-                  ? "bg-primary text-white border-primary"
-                  : "bg-secondary/50 text-muted-foreground border-border/60 hover:text-foreground"
-              }`}
-            >
-              {st}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Week-by-Week Timeline Cards */}
-      <div className="space-y-4">
-        {filteredItems.map((item) => (
-          <Card
-            key={item.id}
-            className={`border transition-all duration-200 ${
-              item.status === "started"
-                ? "border-blue-500/50 bg-card/90 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20"
-                : item.status === "completed"
-                ? "border-emerald-500/30 bg-card/60 opacity-90"
-                : "border-border/70 bg-card/70"
-            }`}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-secondary font-mono text-xs font-bold text-foreground border border-border/80">
-                    W{item.weekNo}
-                  </span>
-                  <div>
-                    <CardTitle className="text-base font-bold text-slate-100">
-                      {item.topic}
-                    </CardTitle>
-                    <span className="text-[11px] text-muted-foreground">
-                      Focus Area: Interview Core Pillar
+      {/* If No Roadmap exists, show empty state with generate action — NO PREFILLED MOCK DATA */}
+      {!roadmap || items.length === 0 ? (
+        <EmptyState
+          icon={<Sparkles className="h-12 w-12 text-primary" />}
+          title="No Roadmap Generated Yet"
+          description={`Generate your dynamic, week-by-week placement curriculum tailored specifically to your ${prepTimeWeeks}-week timeline and target companies.`}
+          actionText="Generate AI Roadmap with Gemini"
+          onAction={() => setModalOpen(true)}
+        />
+      ) : (
+        <>
+          {/* Velocity and Progress Banner */}
+          <Card className="bg-gradient-to-r from-card via-card to-blue-950/20 border-border/80">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground font-medium">Roadmap Progress</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-foreground">{percentComplete}%</span>
+                    <span className="text-xs text-emerald-400 font-semibold">
+                      {completedCount === items.length && items.length > 0 ? "Completed" : "On Pace"}
                     </span>
                   </div>
+                  <Progress value={percentComplete} className="h-2 mt-2" />
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-center">
-                  <StatusBadge status={item.status} />
-
-                  {/* Status Toggle Quick Actions */}
-                  <select
-                    value={item.status}
-                    onChange={(e) =>
-                      handleStatusChange(item.id, e.target.value as RoadmapItemStatus)
-                    }
-                    className="bg-secondary/70 border border-border/70 text-[11px] rounded-lg px-2 py-1 text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                  >
-                    <option value="pending">Mark Pending</option>
-                    <option value="started">Mark In Progress</option>
-                    <option value="completed">Mark Completed</option>
-                    <option value="skipped">Mark Skipped</option>
-                  </select>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-4 pt-1">
-              {/* Goals checklist */}
-              <div className="space-y-2 bg-secondary/30 p-3.5 rounded-xl border border-border/40">
-                <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block">
-                  Weekly Learning Goals:
-                </span>
-                <div className="space-y-1.5">
-                  {item.goals.map((goal, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-2.5 text-xs text-slate-300"
-                    >
-                      <CheckCircle2
-                        className={`h-4 w-4 shrink-0 mt-0.5 ${
-                          item.status === "completed"
-                            ? "text-emerald-400"
-                            : "text-muted-foreground/60"
-                        }`}
-                      />
-                      <span className={item.status === "completed" ? "line-through opacity-70" : ""}>
-                        {goal}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Linked RAG Resource Recommendations */}
-              <div className="flex items-center justify-between pt-1 text-xs">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <BookOpen className="h-3.5 w-3.5 text-blue-400" />
-                  <span>Curated Study Material:</span>
-                  <span className="text-slate-300 font-medium">
-                    ChromaDB Vector Matching
-                  </span>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground font-medium">Completed Milestones</span>
+                  <p className="text-2xl font-bold text-foreground">
+                    {completedCount} <span className="text-xs text-muted-foreground font-normal">of {items.length} Weeks</span>
+                  </p>
                 </div>
 
-                <Link
-                  to={`/resources?topic=${encodeURIComponent(item.topic)}`}
-                  className="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 transition-colors"
-                >
-                  <span>Practice Set</span>
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground font-medium">Currently Active</span>
+                  <p className="text-2xl font-bold text-blue-400">
+                    {activeMilestoneDisplay}{" "}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {activeMilestoneSubtext}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Link to="/reports">
+                    <Button variant="outline" size="sm" className="gap-1 text-xs">
+                      <span>View Progress Report</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+
+          {/* Filter Tabs */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                Filter Milestones:
+              </span>
+            </div>
+
+            <div className="flex gap-1.5">
+              {["all", "started", "completed", "pending"].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3 py-1 rounded-lg text-xs capitalize transition-colors cursor-pointer border ${statusFilter === st
+                      ? "bg-primary text-white border-primary"
+                      : "bg-secondary/50 text-muted-foreground border-border/60 hover:text-foreground"
+                    }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Week-by-Week Timeline Cards */}
+          <div className="space-y-6">
+            {filteredItems.map((item) => {
+              const matchingWeek = roadmap?.weeks?.find((w) => w.weekNo === item.weekNo);
+              const fallback = getFallbackResources(item.topic, targetCompanies[0]);
+              const studyMaterial =
+                item.studyMaterial && item.studyMaterial.length > 0
+                  ? item.studyMaterial
+                  : matchingWeek?.studyMaterial && matchingWeek.studyMaterial.length > 0
+                    ? matchingWeek.studyMaterial
+                    : fallback.studyMaterial;
+
+              const practiceProblems =
+                item.practiceProblems && item.practiceProblems.length > 0
+                  ? item.practiceProblems
+                  : matchingWeek?.practiceProblems && matchingWeek.practiceProblems.length > 0
+                    ? matchingWeek.practiceProblems
+                    : fallback.practiceProblems;
+
+              return (
+                <Card
+                  key={item.id}
+                  className={`border transition-all duration-200 ${item.status === "started"
+                      ? "border-blue-500/50 bg-card/95 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20"
+                      : item.status === "completed"
+                        ? "border-emerald-500/30 bg-card/70 opacity-95"
+                        : "border-border/70 bg-card/80"
+                    }`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary font-mono text-xs font-bold text-foreground border border-border/80">
+                          W{item.weekNo}
+                        </span>
+                        <div>
+                          <CardTitle className="text-base font-bold text-black dark:text-white">
+                            {item.topic}
+                          </CardTitle>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                              Placement Horizon Milestone
+                            </span>
+                            {targetCompanies.length > 0 && (
+                              <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold">
+                                • {targetCompanies.slice(0, 2).join(", ")} Benchmark
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-center">
+                        <StatusBadge status={item.status} />
+
+                        {/* Status Toggle Quick Actions */}
+                        <select
+                          value={item.status}
+                          onChange={(e) =>
+                            handleStatusChange(item.id, e.target.value as RoadmapItemStatus)
+                          }
+                          className="bg-secondary/70 border border-border/70 text-[11px] rounded-lg px-2.5 py-1 text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                        >
+                          <option value="pending">Mark Pending</option>
+                          <option value="started">Mark In Progress</option>
+                          <option value="completed">Mark Completed</option>
+                          <option value="skipped">Mark Skipped</option>
+                        </select>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4 pt-1">
+                    {/* Weekly Learning Goals - HIGH CONTRAST PURE BLACK */}
+                    <div className="space-y-2.5 bg-slate-50 dark:bg-secondary/40 p-4 rounded-xl border border-slate-200 dark:border-border/60 shadow-xs">
+                      <span className="text-xs font-bold text-black dark:text-black uppercase tracking-wider block">
+                        Weekly Learning Goals:
+                      </span>
+                      <div className="space-y-2">
+                        {item.goals.map((goal, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-start gap-2.5 text-xs text-black dark:text-black font-medium"
+                          >
+                            <CheckCircle2
+                              className={`h-4 w-4 shrink-0 mt-0.5 ${item.status === "completed"
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-blue-600 dark:text-blue-400"
+                                }`}
+                            />
+                            <span
+                              className={
+                                item.status === "completed"
+                                  ? "line-through opacity-60 text-slate-500 dark:text-slate-400"
+                                  : "text-black dark:text-black font-medium"
+                              }
+                            >
+                              {goal}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Curated Web Study Material & Resources */}
+                    {studyMaterial.length > 0 && (
+                      <div className="space-y-2.5 bg-slate-50/80 dark:bg-secondary/30 p-4 rounded-xl border border-slate-200 dark:border-border/50">
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                          <span className="text-xs font-bold text-black dark:text-black uppercase tracking-wider">
+                            Recommended Study Material & Web Guides:
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+                          {studyMaterial.map((mat, idx) => (
+                            <a
+                              key={idx}
+                              href={mat.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start justify-between p-3 rounded-xl bg-white dark:bg-card border border-slate-200 dark:border-border/70 hover:border-indigo-400 dark:hover:border-indigo-500/50 hover:shadow-sm transition-all group cursor-pointer"
+                            >
+                              <div className="space-y-1 pr-2 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] py-0 px-1.5 font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
+                                  >
+                                    {mat.platform}
+                                  </Badge>
+                                  {mat.type && (
+                                    <span className="text-[10px] text-black dark:text-black font-medium">
+                                      {mat.type}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs font-semibold text-black dark:text-black group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors line-clamp-2">
+                                  {mat.title}
+                                </p>
+                              </div>
+                              <ExternalLink className="h-3.5 w-3.5 text-black dark:text-black group-hover:text-indigo-600 dark:group-hover:text-indigo-400 shrink-0 transition-colors mt-0.5" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Platform Practice Problems & Coding Challenges */}
+                    {practiceProblems.length > 0 && (
+                      <div className="space-y-2.5 bg-slate-50/80 dark:bg-secondary/30 p-4 rounded-xl border border-slate-200 dark:border-border/50">
+                        <div className="flex items-center gap-2">
+                          <Code2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-xs font-bold text-black dark:text-black uppercase tracking-wider">
+                            Practice Problems & Coding Challenges:
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+                          {practiceProblems.map((prob, idx) => (
+                            <a
+                              key={idx}
+                              href={prob.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start justify-between p-3 rounded-xl bg-white dark:bg-card border border-slate-200 dark:border-border/70 hover:border-emerald-400 dark:hover:border-emerald-500/50 hover:shadow-sm transition-all group cursor-pointer"
+                            >
+                              <div className="space-y-1 pr-2 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] py-0 px-1.5 font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                  >
+                                    {prob.platform}
+                                  </Badge>
+                                  {prob.difficulty && (
+                                    <span
+                                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${prob.difficulty.toLowerCase() === "easy"
+                                          ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+                                          : prob.difficulty.toLowerCase() === "hard"
+                                            ? "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800"
+                                            : "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                                        }`}
+                                    >
+                                      {prob.difficulty}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs font-semibold text-black dark:text-black group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors line-clamp-2">
+                                  {prob.title}
+                                </p>
+                              </div>
+                              <ExternalLink className="h-3.5 w-3.5 text-black dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 shrink-0 transition-colors mt-0.5" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* SSE Generator Modal */}
       <RoadmapGeneratorModal

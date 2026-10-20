@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import * as roadmapService from "./roadmap.service.js";
+import * as profileRepo from "../profile/profile.repository.js";
 import type { ItemStatusInput } from "./roadmap.validation.js";
 
 export async function generate(req: Request, res: Response): Promise<void> {
@@ -25,7 +26,18 @@ export async function generate(req: Request, res: Response): Promise<void> {
 
   try {
     const roadmap = await roadmapService.generateRoadmap(userId, sendEvent);
-    sendEvent({ type: "done", roadmap, source: "ai_generated" });
+    sendEvent({
+      type: "complete",
+      data: roadmap,
+      roadmap,
+      source: "ai_generated",
+    });
+    sendEvent({
+      type: "done",
+      data: roadmap,
+      roadmap,
+      source: "ai_generated",
+    });
   } catch (err: any) {
     sendEvent({
       type: "error",
@@ -41,7 +53,24 @@ export async function generate(req: Request, res: Response): Promise<void> {
 export async function getActive(req: Request, res: Response): Promise<void> {
   const userId = req.user!.userId;
   const result = await roadmapService.getActiveRoadmap(userId);
-  res.status(200).json({ ...result, source: "ai_generated" });
+  const profile = await profileRepo.findByUserId(userId);
+  res.status(200).json({
+    roadmap: {
+      ...result.roadmap,
+      items: result.items,
+    },
+    items: result.items,
+    profile: profile
+      ? {
+        timelineWeeks: profile.timeline_weeks,
+        targetCompanies: profile.target_companies,
+        technicalSubjects: profile.technical_subjects,
+        programmingSkills: profile.programming_skills,
+        education: profile.education,
+      }
+      : null,
+    source: "ai_generated",
+  });
 }
 
 export async function getHistory(req: Request, res: Response): Promise<void> {

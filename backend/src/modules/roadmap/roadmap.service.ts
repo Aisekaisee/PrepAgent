@@ -10,32 +10,69 @@ export type ProgressCallback = (event: object) => void;
 export async function generateRoadmap(
   userId: string,
   onProgress: ProgressCallback
-): Promise<Roadmap> {
-  // Fetch timeline from profile
-  const profile = await profileRepo.findByUserId(userId);
+): Promise<Roadmap & { items: RoadmapItem[] }> {
+  // Fetch timeline and details from profile
+  let profile = await profileRepo.findByUserId(userId);
   if (!profile) {
-    throw new AppError("PROFILE_NOT_FOUND", 404, "Complete your profile before generating a roadmap");
+    profile = await profileRepo.upsertProfile(userId, {
+      timelineWeeks: 8,
+      targetCompanies: ["Google", "Amazon", "Microsoft"],
+      technicalSubjects: [
+        "Data Structures & Algorithms",
+        "System Design",
+        "Operating Systems",
+        "Database Management Systems",
+      ],
+      programmingSkills: ["C++", "Java", "Python"],
+      education: {
+        degree: "B.Tech Computer Science & Engineering",
+        institution: "University",
+        year: 2026,
+      },
+    });
   }
-  const timelineWeeks: number = profile.timeline_weeks ?? 12;
 
-  const initialState = createInitialState(userId, timelineWeeks);
+  const timelineWeeks: number = profile.timeline_weeks ?? 8;
+  const targetCompanies: string[] = profile.target_companies ?? [];
+  const technicalSubjects: string[] = profile.technical_subjects ?? [];
+  const programmingSkills: string[] = profile.programming_skills ?? [];
+  const education = profile.education;
 
-  onProgress({ type: "progress", node: "profileNode", message: "Analyzing your profile..." });
+  const initialState = createInitialState(userId, {
+    timelineWeeks,
+    targetCompanies,
+    technicalSubjects,
+    programmingSkills,
+    education,
+  });
+
+  onProgress({
+    type: "progress",
+    node: "profileNode",
+    message: `Analyzing profile: ${timelineWeeks}w prep, ${targetCompanies.length} companies, ${technicalSubjects.length} subjects...`,
+    percentage: 15,
+  });
 
   // Invoke the graph (non-streaming — collect final state)
   const finalState = await roadmapGraph.invoke(initialState as any) as any;
 
   // Emit progress events for each node that ran (state keys set)
-  const nodeMessages: Record<string, string> = {
-    skillProfile: "Profile analyzed ✓",
-    assessedProfile: "Assessment data merged ✓",
-    gapList: "Skill gaps computed ✓",
-    roadmapDraft: "Roadmap structure generated ✓",
-    roadmap: "Resources matched ✓",
+  const nodeProgress: Record<string, { message: string; percentage: number }> = {
+    skillProfile: { message: "Profile & company expectations normalized ✓", percentage: 30 },
+    assessedProfile: { message: "Assessment data merged ✓", percentage: 45 },
+    gapList: { message: "Target skill gaps computed ✓", percentage: 60 },
+    roadmapDraft: { message: "Curriculum synthesized with Gemini AI ✓", percentage: 80 },
+    roadmap: { message: "Curated resource hints matched ✓", percentage: 95 },
   };
-  for (const [key, message] of Object.entries(nodeMessages)) {
+
+  for (const [key, info] of Object.entries(nodeProgress)) {
     if (finalState[key] !== null && finalState[key] !== undefined) {
-      onProgress({ type: "progress", node: key, message });
+      onProgress({
+        type: "progress",
+        node: key,
+        message: info.message,
+        percentage: info.percentage,
+      });
     }
   }
 
@@ -43,7 +80,12 @@ export async function generateRoadmap(
     throw new AppError("ROADMAP_GENERATION_FAILED", 500, "Roadmap generation did not complete successfully");
   }
 
-  onProgress({ type: "progress", node: "persistAndReturnNode", message: "Roadmap saved ✓" });
+  onProgress({
+    type: "progress",
+    node: "persistAndReturnNode",
+    message: "Personalized roadmap saved successfully ✓",
+    percentage: 100,
+  });
 
   const result = await roadmapRepo.findRoadmapWithItems(finalState.roadmap.roadmapId);
   if (!result) {
@@ -52,7 +94,10 @@ export async function generateRoadmap(
 
   logger.info({ userId, roadmapId: finalState.roadmap.roadmapId }, "Roadmap generation complete");
 
-  return result.roadmap;
+  return {
+    ...result.roadmap,
+    items: result.items,
+  };
 }
 
 export async function getActiveRoadmap(

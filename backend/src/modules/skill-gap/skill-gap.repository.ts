@@ -1,5 +1,5 @@
 import { db } from "../../db/client.js";
-import type { CompanyRequirement, TopicProficiencyMap } from "./skill-gap.types.js";
+import type { CompanyRequirement } from "./skill-gap.types.js";
 
 export async function findCompanyRequirements(
   companyNames: string[]
@@ -29,35 +29,53 @@ export async function findCompanyRequirements(
   }));
 }
 
-export async function findLatestTopicScoresByUser(
+export interface AssessedSessionRow {
+  topic: string | null;
+  score: number | null;
+  topicBreakdown: Record<string, { total: number; correct: number; accuracy?: number; proficiency?: string }> | null;
+  submittedAt: Date;
+}
+
+export async function findAllAssessedSessionsByUser(
   userId: string
-): Promise<TopicProficiencyMap> {
-  // Fetch the most recently submitted session and its topic breakdown
+): Promise<AssessedSessionRow[]> {
   const result = await db.query(
     `
-    SELECT topic_breakdown
+    SELECT topic, score, topic_breakdown, submitted_at
     FROM assessment_sessions
     WHERE user_id = $1
       AND status = 'submitted'
-      AND topic_breakdown IS NOT NULL
     ORDER BY submitted_at DESC
-    LIMIT 1
     `,
     [userId]
   );
 
-  if (result.rows.length === 0) return {};
+  return result.rows.map((row) => ({
+    topic: row.topic,
+    score: row.score !== null ? Number(row.score) : null,
+    topicBreakdown:
+      typeof row.topic_breakdown === "string"
+        ? JSON.parse(row.topic_breakdown)
+        : (row.topic_breakdown ?? null),
+    submittedAt: new Date(row.submitted_at),
+  }));
+}
 
-  const breakdown: Record<string, { total: number; correct: number }> =
-    result.rows[0].topic_breakdown;
+export async function findLatestTopicScoresByUser(
+  userId: string
+): Promise<Record<string, number>> {
+  const sessions = await findAllAssessedSessionsByUser(userId);
+  const map: Record<string, number> = {};
 
-  const proficiencyMap: TopicProficiencyMap = {};
-
-  for (const [topic, stats] of Object.entries(breakdown)) {
-    proficiencyMap[topic] = stats.total > 0
-      ? (stats.correct / stats.total) * 100
-      : 0;
+  for (const sess of sessions) {
+    if (sess.topicBreakdown) {
+      for (const [top, stats] of Object.entries(sess.topicBreakdown)) {
+        if (map[top] === undefined && stats.total > 0) {
+          map[top] = ((stats.correct || 0) / stats.total) * 100;
+        }
+      }
+    }
   }
 
-  return proficiencyMap;
+  return map;
 }

@@ -3,6 +3,20 @@ import type { Resource } from "./resource";
 export type RoadmapItemStatus = "pending" | "started" | "completed" | "skipped";
 export type RoadmapStatus = "active" | "superseded";
 
+export interface StudyMaterial {
+  title: string;
+  url: string;
+  platform: string;
+  type?: string;
+}
+
+export interface PracticeProblem {
+  title: string;
+  url: string;
+  platform: string;
+  difficulty?: "Easy" | "Medium" | "Hard" | string;
+}
+
 export interface RoadmapItem {
   id: string;
   roadmapId: string;
@@ -12,6 +26,9 @@ export interface RoadmapItem {
   status: RoadmapItemStatus;
   resourceRefs?: string[];
   resources?: Resource[];
+  studyMaterial?: StudyMaterial[];
+  practiceProblems?: PracticeProblem[];
+  resourceHints?: string[];
   updatedAt?: string;
 }
 
@@ -27,6 +44,8 @@ export interface Roadmap {
     topic: string;
     goals: string[];
     resourceHints?: string[];
+    studyMaterial?: StudyMaterial[];
+    practiceProblems?: PracticeProblem[];
   }>;
   items: RoadmapItem[];
 }

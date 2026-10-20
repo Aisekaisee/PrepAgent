@@ -9,7 +9,7 @@ export class GeminiProvider implements LLMProvider {
 
   constructor() {
     this.model = new ChatGoogleGenerativeAI({
-      model: "gemini-1.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       apiKey: env.GEMINI_API_KEY,
       temperature: 0.3,
     });

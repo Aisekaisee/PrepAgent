@@ -16,18 +16,56 @@ export interface CompanyRequirement {
 
 export interface GapItem {
   topic: string;
+  requiredLevel: ProficiencyLevel;
   required: ProficiencyLevel;
   requiredScore: number;
-  current: ProficiencyLevel | "none";
+  currentLevel: ProficiencyLevel;
+  current: ProficiencyLevel;
   currentScore: number;
-  severity: number; // requiredScore - currentScore (higher = bigger gap)
+  gapScore: number;
+  severity: "low" | "moderate" | "high" | "critical";
   rank: number;
+  relevantCompanies: string[];
+  isAssessed: boolean;
+}
+
+export interface SkillGapInsights {
+  priority1?: {
+    topic: string;
+    currentLevel: string;
+    requiredLevel: string;
+    companies: string[];
+    description: string;
+  };
+  priority2?: {
+    topic: string;
+    currentLevel: string;
+    requiredLevel: string;
+    companies: string[];
+    description: string;
+  };
+  strongFoundation?: {
+    topic: string;
+    currentLevel: string;
+    companies: string[];
+    description: string;
+  };
 }
 
 export interface GapResult {
-  gaps: GapItem[];
+  userId?: string;
   targetCompanies: string[];
+  gaps: GapItem[];
   computedAt: Date;
+  insights?: SkillGapInsights;
 }
 
-export type TopicProficiencyMap = Record<string, number>; // topic -> score (0–100)
+export type TopicProficiencyMap = Record<
+  string,
+  {
+    accuracy: number;
+    score: number;
+    proficiency: ProficiencyLevel;
+    assessmentsCount: number;
+  }
+>;

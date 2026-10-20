@@ -18,3 +18,14 @@ export interface TokenPair {
     accessToken: string;
     refreshToken: string;
 }
+
+export interface UserResponse {
+    id: string;
+    email: string;
+    role: "student" | "admin";
+    createdAt: Date;
+}
+
+export interface AuthResult extends TokenPair {
+    user: UserResponse;
+}

@@ -8,13 +8,38 @@ export interface GapItem {
   severity: "low" | "moderate" | "high" | "critical";
   rank: number;
   relevantCompanies: string[];
+  isAssessed?: boolean;
+}
+
+export interface SkillGapInsights {
+  priority1?: {
+    topic: string;
+    currentLevel: string;
+    requiredLevel: string;
+    companies: string[];
+    description: string;
+  };
+  priority2?: {
+    topic: string;
+    currentLevel: string;
+    requiredLevel: string;
+    companies: string[];
+    description: string;
+  };
+  strongFoundation?: {
+    topic: string;
+    currentLevel: string;
+    companies: string[];
+    description: string;
+  };
 }
 
 export interface SkillGapResponse {
-  userId: string;
+  userId?: string;
   targetCompanies: string[];
   gaps: GapItem[];
   computedAt: string;
+  insights?: SkillGapInsights;
 }
 
 export interface CompanyRequirement {

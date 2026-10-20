@@ -108,12 +108,33 @@ export async function history(
     }
 }
 
+export async function getSession(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.user!.userId;
+        const sessionId = String(req.params.id);
+
+        const result = await assessmentService.getSessionDetails(sessionId, userId);
+
+        res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export class AssessmentController {
     start = start;
     nextQuestion = nextQuestion;
     answer = answer;
     submit = submit;
     history = history;
+    getSession = getSession;
 }
 
-export const assessmentController = new AssessmentController();
+export const assessmentController = new AssessmentController();

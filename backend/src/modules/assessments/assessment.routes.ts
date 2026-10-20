@@ -43,3 +43,10 @@ assessmentRouter.post(
     authenticate,
     controller.submit
 );
+
+assessmentRouter.get(
+    "/:id",
+    authenticate,
+    controller.getSession
+);
+

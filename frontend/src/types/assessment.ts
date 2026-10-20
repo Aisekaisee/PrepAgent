@@ -17,11 +17,12 @@ export interface Question {
   difficulty: Difficulty;
   companyTags?: string[];
   content: QuestionContent;
+  questionNumber?: number;
+  totalQuestions?: number;
 }
 
-export interface QuestionAnswer {
+export interface DetailedQuestionAnswer {
   id: string;
-  sessionId: string;
   questionId: string;
   studentAnswer: {
     selectedOption?: string;
@@ -29,8 +30,21 @@ export interface QuestionAnswer {
     text?: string;
   };
   isCorrect: boolean | null;
-  feedback?: string;
   answeredAt: string;
+  question?: {
+    id: string;
+    type: QuestionType;
+    topic: string;
+    difficulty: Difficulty;
+    companyTags?: string[];
+    prompt: string;
+    options?: string[];
+    codeTemplate?: string;
+    testCases?: Array<{ input: string; output: string }>;
+    hint?: string;
+    correctOption?: string;
+    explanation?: string;
+  } | null;
 }
 
 export interface TopicBreakdown {
@@ -52,4 +66,5 @@ export interface AssessmentSession {
   topicBreakdown?: TopicBreakdown;
   status: SessionStatus;
   answersCount?: number;
+  answers?: DetailedQuestionAnswer[];
 }

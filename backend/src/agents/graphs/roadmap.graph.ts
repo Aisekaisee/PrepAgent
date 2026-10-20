@@ -8,10 +8,23 @@ import { resourceRecommendationNode } from "../nodes/resourceRecommendationNode.
 import { persistAndReturnNode } from "../nodes/persistAndReturnNode.js";
 
 // Initial state factory
-export function createInitialState(userId: string, timelineWeeks: number): RoadmapGraphState {
+export function createInitialState(
+  userId: string,
+  profileData?: {
+    timelineWeeks?: number;
+    targetCompanies?: string[];
+    technicalSubjects?: string[];
+    programmingSkills?: string[];
+    education?: any;
+  }
+): RoadmapGraphState {
   return {
     userId,
-    timelineWeeks,
+    timelineWeeks: profileData?.timelineWeeks ?? 8,
+    targetCompanies: profileData?.targetCompanies ?? [],
+    technicalSubjects: profileData?.technicalSubjects ?? [],
+    programmingSkills: profileData?.programmingSkills ?? [],
+    education: profileData?.education,
     skillProfile: null,
     assessedProfile: null,
     gapList: null,
@@ -40,7 +53,11 @@ function routeAfterGapAnalysis(state: RoadmapGraphState): "roadmapGenerationNode
 const graphBuilder = new StateGraph<RoadmapGraphState>({
   channels: {
     userId: { value: (_: string, b: string) => b, default: () => "" },
-    timelineWeeks: { value: (_: number, b: number) => b, default: () => 12 },
+    timelineWeeks: { value: (_: number, b: number) => b, default: () => 8 },
+    targetCompanies: { value: (_: any, b: any) => b ?? [], default: () => [] },
+    technicalSubjects: { value: (_: any, b: any) => b ?? [], default: () => [] },
+    programmingSkills: { value: (_: any, b: any) => b ?? [], default: () => [] },
+    education: { value: (_: any, b: any) => b, default: () => undefined },
     skillProfile: { value: (_: any, b: any) => b, default: () => null },
     assessedProfile: { value: (_: any, b: any) => b, default: () => null },
     gapList: { value: (_: any, b: any) => b, default: () => null },

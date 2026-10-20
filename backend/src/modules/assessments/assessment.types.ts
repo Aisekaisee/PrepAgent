@@ -13,6 +13,7 @@ export interface QuestionContent {
     options?: string[];
     codeTemplate?: string;
     testCases?: unknown[];
+    hint?: string;
 }
 
 export interface AnswerKey {
@@ -30,6 +31,8 @@ export interface Question {
     content: QuestionContent;
     answerKey: AnswerKey;
     createdAt: Date;
+    questionNumber?: number;
+    totalQuestions?: number;
 }
 
 export interface AssessmentSession {

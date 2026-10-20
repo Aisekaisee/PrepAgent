@@ -1,19 +1,20 @@
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { authenticate } from "../../middleware/auth.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
 import { itemStatusSchema } from "./roadmap.validation.js";
 import * as roadmapController from "./roadmap.controller.js";
 
+import { env } from "../../config/env.js";
+
 export const roadmapRouter = Router();
 
-// 5 roadmap generations per hour per user
+// Generation rate limit: 100/hr in dev, 5/hr in prod
 const generateRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 5,
-  keyGenerator: (req) => req.user?.userId ?? req.ip ?? "unknown",
-  validate: { keyGenerator: false },
-  message: { error: { code: "RATE_LIMITED", message: "Maximum 5 roadmap generations per hour" } },
+  limit: env.NODE_ENV === "development" ? 100 : 5,
+  keyGenerator: (req) => req.user?.userId ?? (req.ip ? ipKeyGenerator(req.ip) : "unknown"),
+  message: { error: { code: "RATE_LIMITED", message: "Maximum roadmap generations exceeded. Please try again later." } },
 });
 
 roadmapRouter.post("/generate", authenticate, generateRateLimit, roadmapController.generate);

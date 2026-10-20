@@ -252,3 +252,38 @@ export async function listSessionsByUser(
 
     return result.rows.map(mapSessionRow);
 }
+
+export async function createQuestion(data: {
+    type: "coding" | "aptitude" | "technical";
+    topic: string;
+    difficulty: "easy" | "medium" | "hard";
+    companyTags?: string[];
+    content: unknown;
+    answerKey: unknown;
+}): Promise<Question> {
+    const result = await db.query(
+        `
+        INSERT INTO questions (
+          type,
+          topic,
+          difficulty,
+          company_tags,
+          content,
+          answer_key
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+        `,
+        [
+            data.type,
+            data.topic,
+            data.difficulty,
+            data.companyTags ?? [],
+            typeof data.content === "string" ? data.content : JSON.stringify(data.content),
+            typeof data.answerKey === "string" ? data.answerKey : JSON.stringify(data.answerKey)
+        ]
+    );
+
+    return mapQuestionRow(result.rows[0]);
+}
+

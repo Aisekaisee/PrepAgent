@@ -1,9 +1,25 @@
+export interface StudyMaterial {
+  title: string;
+  url: string;
+  platform: string;
+  type?: string;
+}
+
+export interface PracticeProblem {
+  title: string;
+  url: string;
+  platform: string;
+  difficulty?: string;
+}
+
 export interface RoadmapWeekItem {
   weekNo: number;
   topic: string;
   goals: string[];
   resourceHints: string[];
   resourceRefs: string[];
+  studyMaterial?: StudyMaterial[];
+  practiceProblems?: PracticeProblem[];
 }
 
 export interface Roadmap {
@@ -25,6 +41,9 @@ export interface RoadmapItem {
   resourceRefs: string[];
   status: "pending" | "started" | "completed" | "skipped";
   updatedAt: Date;
+  studyMaterial?: StudyMaterial[];
+  practiceProblems?: PracticeProblem[];
+  resourceHints?: string[];
 }
 
 export type RoadmapItemStatus = RoadmapItem["status"];

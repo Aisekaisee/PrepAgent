@@ -149,7 +149,19 @@ export async function streamRoadmapGeneration({
       },
     });
 
-    if (response.ok && response.body) {
+    if (!response.ok) {
+      let errMsg = `Server returned status ${response.status}`;
+      try {
+        const errData = await response.json();
+        errMsg = errData.message || errMsg;
+      } catch {
+        // Ignore
+      }
+      onError(new Error(errMsg));
+      return;
+    }
+
+    if (response.body) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -169,8 +181,14 @@ export async function streamRoadmapGeneration({
               const data = JSON.parse(trimmed.slice(5).trim());
               if (data.type === "progress") {
                 onProgress(data);
-              } else if (data.type === "complete" && data.data) {
-                onComplete(data.data);
+              } else if (
+                (data.type === "complete" || data.type === "done") &&
+                (data.data || data.roadmap)
+              ) {
+                onComplete(data.data || data.roadmap);
+                return;
+              } else if (data.type === "error") {
+                onError(new Error(data.message || "Roadmap generation error"));
                 return;
               }
             } catch {
@@ -181,166 +199,9 @@ export async function streamRoadmapGeneration({
       }
       return;
     }
-  } catch (err) {
-    if (err instanceof TypeError && err.message !== "Failed to fetch") {
-      onError(err);
-    }
-    // Fall back to animated mock progression
+  } catch (err: any) {
+    onError(err instanceof Error ? err : new Error(String(err)));
   }
-
-  // Simulated LangGraph 5-stage progression matching Phase 4 specifications
-  const stages: Array<{ node: string; message: string; percentage: number; delay: number }> = [
-    { node: "profileNode", message: "Normalizing student profile and target company requirements...", percentage: 18, delay: 500 },
-    { node: "skillAssessmentNode", message: "Integrating assessment results and computing proficiency vector...", percentage: 40, delay: 800 },
-    { node: "skillGapNode", message: "Analyzing skill gaps against Google, Amazon & Microsoft benchmarks...", percentage: 62, delay: 900 },
-    { node: "roadmapGenerationNode", message: "Synthesizing 8-week structured roadmap with Gemini LLM...", percentage: 85, delay: 1100 },
-    { node: "resourceRecommendationNode", message: "Retrieving semantic ChromaDB study materials & practice sets...", percentage: 95, delay: 700 },
-    { node: "persistAndReturnNode", message: "Finalizing active roadmap and setting version snapshot...", percentage: 100, delay: 500 },
-  ];
-
-  let cumulativeDelay = 0;
-  stages.forEach((stage, idx) => {
-    cumulativeDelay += stage.delay;
-    setTimeout(() => {
-      onProgress({
-        type: "progress",
-        node: stage.node,
-        message: stage.message,
-        percentage: stage.percentage,
-      });
-
-      if (idx === stages.length - 1) {
-        setTimeout(() => {
-          onComplete(getMockGeneratedRoadmap());
-        }, 300);
-      }
-    }, cumulativeDelay);
-  });
 }
 
-function getMockGeneratedRoadmap(): Roadmap {
-  return {
-    id: "roadmap-" + Date.now(),
-    userId: "demo-student-id-001",
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    status: "active",
-    source: "ai_generated",
-    weeks: [
-      {
-        weekNo: 1,
-        topic: "Advanced Data Structures & Sliding Window",
-        goals: ["Master Two Pointers & Sliding Window techniques", "Solve 15 LeetCode Mediums", "Review Heap/Priority Queue patterns"],
-        resourceHints: ["NeetCode Roadmap", "Blind 75 Sliding Window Set"],
-      },
-      {
-        weekNo: 2,
-        topic: "Dynamic Programming: 1D & Subsequence",
-        goals: ["Climbing stairs to Coin Change variations", "Longest Common Subsequence & Edit Distance", "Space optimization tricks"],
-        resourceHints: ["MIT 6.006 DP Lectures", "LeetCode DP Patterns Guide"],
-      },
-      {
-        weekNo: 3,
-        topic: "Graph Algorithms & Shortest Path",
-        goals: ["BFS/DFS traversal with cycle detection", "Dijkstra's Algorithm & Topological Sort", "Union-Find with path compression"],
-        resourceHints: ["Graph Theory Visualizer", "CSES Problem Set"],
-      },
-      {
-        weekNo: 4,
-        topic: "System Design: Scaling & Architecture",
-        goals: ["Horizontal scaling vs vertical scaling", "Database Sharding & Replication", "Caching layers with Redis/CDN"],
-        resourceHints: ["Designing Data-Intensive Applications", "System Design Primer"],
-      },
-      {
-        weekNo: 5,
-        topic: "Database Internals & SQL Mastery",
-        goals: ["B-Tree & LSM-Tree indexing", "ACID transactions & Isolation levels", "Complex SQL joins and query optimization"],
-        resourceHints: ["Use The Index, Luke!", "PostgreSQL Performance Guide"],
-      },
-      {
-        weekNo: 6,
-        topic: "Operating Systems & Concurrency",
-        goals: ["Threads, processes, and synchronization primitives", "Deadlock conditions & resolution", "Virtual memory & paging"],
-        resourceHints: ["OSTEP (Three Easy Pieces)", "Java/C++ Concurrency Cheatsheet"],
-      },
-      {
-        weekNo: 7,
-        topic: "Low-Level Design & Design Patterns",
-        goals: ["SOLID Principles in practice", "Factory, Strategy, Observer, Decorator patterns", "Design a Parking Lot / Rate Limiter"],
-        resourceHints: ["Refactoring.Guru Design Patterns", "Grokking OOD"],
-      },
-      {
-        weekNo: 8,
-        topic: "Company Mock Interviews & STAR Behavioral",
-        goals: ["Complete 3 timed mock interview sessions", "Refine 5 STAR behavioral stories", "Company-specific interview culture prep"],
-        resourceHints: ["Pramp Mock Sessions", "PrepAgent Practice Bank"],
-      },
-    ],
-    items: [
-      {
-        id: "item-1",
-        roadmapId: "roadmap-1",
-        weekNo: 1,
-        topic: "Advanced Data Structures & Sliding Window",
-        goals: ["Master Two Pointers & Sliding Window techniques", "Solve 15 LeetCode Mediums", "Review Heap/Priority Queue patterns"],
-        status: "completed",
-      },
-      {
-        id: "item-2",
-        roadmapId: "roadmap-1",
-        weekNo: 2,
-        topic: "Dynamic Programming: 1D & Subsequence",
-        goals: ["Climbing stairs to Coin Change variations", "Longest Common Subsequence & Edit Distance", "Space optimization tricks"],
-        status: "started",
-      },
-      {
-        id: "item-3",
-        roadmapId: "roadmap-1",
-        weekNo: 3,
-        topic: "Graph Algorithms & Shortest Path",
-        goals: ["BFS/DFS traversal with cycle detection", "Dijkstra's Algorithm & Topological Sort", "Union-Find with path compression"],
-        status: "pending",
-      },
-      {
-        id: "item-4",
-        roadmapId: "roadmap-1",
-        weekNo: 4,
-        topic: "System Design: Scaling & Architecture",
-        goals: ["Horizontal scaling vs vertical scaling", "Database Sharding & Replication", "Caching layers with Redis/CDN"],
-        status: "pending",
-      },
-      {
-        id: "item-5",
-        roadmapId: "roadmap-1",
-        weekNo: 5,
-        topic: "Database Internals & SQL Mastery",
-        goals: ["B-Tree & LSM-Tree indexing", "ACID transactions & Isolation levels", "Complex SQL joins and query optimization"],
-        status: "pending",
-      },
-      {
-        id: "item-6",
-        roadmapId: "roadmap-1",
-        weekNo: 6,
-        topic: "Operating Systems & Concurrency",
-        goals: ["Threads, processes, and synchronization primitives", "Deadlock conditions & resolution", "Virtual memory & paging"],
-        status: "pending",
-      },
-      {
-        id: "item-7",
-        roadmapId: "roadmap-1",
-        weekNo: 7,
-        topic: "Low-Level Design & Design Patterns",
-        goals: ["SOLID Principles in practice", "Factory, Strategy, Observer, Decorator patterns", "Design a Parking Lot / Rate Limiter"],
-        status: "pending",
-      },
-      {
-        id: "item-8",
-        roadmapId: "roadmap-1",
-        weekNo: 8,
-        topic: "Company Mock Interviews & STAR Behavioral",
-        goals: ["Complete 3 timed mock interview sessions", "Refine 5 STAR behavioral stories", "Company-specific interview culture prep"],
-        status: "pending",
-      },
-    ],
-  };
-}
+

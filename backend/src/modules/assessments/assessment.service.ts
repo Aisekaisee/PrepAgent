@@ -1,6 +1,8 @@
 import { AppError } from "../../utils/AppError.js";
 import * as repository from "./assessment.repository.js";
+import * as profileRepo from "../profile/profile.repository.js";
 import { gradeAnswer } from "./grader.js";
+import { generateDynamicQuestion } from "./questionGenerator.js";
 import type { AssessmentSession, Question } from "./assessment.types.js";
 
 export async function startSession(
@@ -17,7 +19,7 @@ function calculateDifficulty(
         return "medium";
     }
 
-    const recent = answers.slice(-5);
+    const recent = answers.slice(-3);
     const graded = recent.filter(a => a.isCorrect !== null);
 
     if (graded.length === 0) {
@@ -41,7 +43,7 @@ function calculateDifficulty(
 export async function getNextQuestion(
     sessionId: string,
     userId: string
-): Promise<Omit<Question, "answerKey">> {
+): Promise<Omit<Question, "answerKey"> | null> {
     const session = await repository.findSessionById(sessionId);
 
     if (!session) {
@@ -69,53 +71,49 @@ export async function getNextQuestion(
     }
 
     const answers = await repository.getSessionAnswers(sessionId);
+
+    // Limit assessments to 5 questions per sprint/diagnostic
+    if (answers.length >= 5) {
+        return null;
+    }
+
     const difficulty = calculateDifficulty(answers);
-    const answeredQuestionIds = answers.map(a => a.questionId);
 
-    let questions = await repository.findQuestionsByFilters(
-        session.topic,
+    // Fetch user profile for dynamic personalization
+    const profile = await profileRepo.findByUserId(userId);
+
+    const profileContext = {
+        targetCompanies: (profile?.target_companies as string[]) ?? [],
+        programmingSkills: (profile?.programming_skills as string[]) ?? [],
+        technicalSubjects: (profile?.technical_subjects as string[]) ?? [],
+        education: profile?.education as any,
+    };
+
+    // Gather already asked prompts to avoid repeating questions
+    const excludePrompts: string[] = [];
+    for (const ans of answers) {
+        const q = await repository.findQuestionById(ans.questionId);
+        if (q?.content?.prompt) {
+            excludePrompts.push(q.content.prompt);
+        }
+    }
+
+    // Generate dynamic question tailored to profile & adaptive difficulty
+    const dynamicQuestion = await generateDynamicQuestion({
+        profile: profileContext,
+        topic: session.topic || "Full Placement Diagnostic (Adaptive)",
         difficulty,
-        answeredQuestionIds
-    );
-
-    // Fallback if no question exists at current difficulty
-    if (questions.length === 0) {
-        questions = await repository.findQuestionsByFilters(
-            session.topic,
-            "easy",
-            answeredQuestionIds
-        );
-    }
-
-    if (questions.length === 0) {
-        questions = await repository.findQuestionsByFilters(
-            session.topic,
-            "medium",
-            answeredQuestionIds
-        );
-    }
-
-    if (questions.length === 0) {
-        questions = await repository.findQuestionsByFilters(
-            session.topic,
-            "hard",
-            answeredQuestionIds
-        );
-    }
-
-    if (questions.length === 0) {
-        throw new AppError(
-            "NO_QUESTIONS_AVAILABLE",
-            404,
-            "No unused questions are available"
-        );
-    }
-
-    const selectedQuestion = questions[0];
+        questionIndex: answers.length + 1,
+        excludePrompts,
+    });
 
     // Sanitize answerKey so the answer is never exposed to the client
-    const { answerKey: _key, ...sanitizedQuestion } = selectedQuestion;
-    return sanitizedQuestion;
+    const { answerKey: _key, ...sanitizedQuestion } = dynamicQuestion;
+    return {
+        ...sanitizedQuestion,
+        questionNumber: answers.length + 1,
+        totalQuestions: 5
+    };
 }
 
 export async function submitAnswer(
@@ -209,40 +207,127 @@ export async function finalizeSession(
     }
 
     if (session.status !== "active") {
-        throw new AppError(
-            "SESSION_NOT_ACTIVE",
-            400,
-            "Assessment has already been submitted"
-        );
+        return session;
     }
 
     const answers = await repository.getSessionAnswers(sessionId);
 
     let score = 0;
-    const topicBreakdown: Record<string, { total: number; correct: number }> = {};
+    const rawCounts: Record<string, { total: number; correct: number }> = {};
 
     if (answers.length > 0) {
         let correctCount = 0;
 
         for (const ans of answers) {
             const q = await repository.findQuestionById(ans.questionId);
-            const topic = q?.topic ?? "general";
+            const topic = q?.topic ?? session.topic ?? "General Technical";
 
-            if (!topicBreakdown[topic]) {
-                topicBreakdown[topic] = { total: 0, correct: 0 };
+            if (!rawCounts[topic]) {
+                rawCounts[topic] = { total: 0, correct: 0 };
             }
-            topicBreakdown[topic].total += 1;
+            rawCounts[topic].total += 1;
 
             if (ans.isCorrect === true) {
                 correctCount += 1;
-                topicBreakdown[topic].correct += 1;
+                rawCounts[topic].correct += 1;
             }
         }
 
-        score = Number(((correctCount / answers.length) * 100).toFixed(2));
+        score = Number(((correctCount / answers.length) * 100).toFixed(1));
+    }
+
+    // Build properly structured topicBreakdown matching TopicBreakdown interface
+    const topicBreakdown: Record<
+        string,
+        {
+            total: number;
+            correct: number;
+            accuracy: number;
+            proficiency: "beginner" | "intermediate" | "advanced" | "expert";
+        }
+    > = {};
+
+    for (const [top, stats] of Object.entries(rawCounts)) {
+        const accuracy = stats.total > 0 ? Number((stats.correct / stats.total).toFixed(2)) : 0;
+        const proficiency =
+            accuracy >= 0.85
+                ? "expert"
+                : accuracy >= 0.70
+                ? "advanced"
+                : accuracy >= 0.45
+                ? "intermediate"
+                : "beginner";
+
+        topicBreakdown[top] = {
+            total: stats.total,
+            correct: stats.correct,
+            accuracy,
+            proficiency
+        };
     }
 
     return repository.finalizeSession(sessionId, score, topicBreakdown);
+}
+
+export async function getSessionDetails(
+    sessionId: string,
+    userId: string
+) {
+    const session = await repository.findSessionById(sessionId);
+
+    if (!session) {
+        throw new AppError(
+            "SESSION_NOT_FOUND",
+            404,
+            "Assessment session not found"
+        );
+    }
+
+    if (session.userId !== userId) {
+        throw new AppError(
+            "FORBIDDEN",
+            403,
+            "You do not own this assessment"
+        );
+    }
+
+    const answers = await repository.getSessionAnswers(sessionId);
+    const detailedAnswers = await Promise.all(
+        answers.map(async (ans) => {
+            const q = await repository.findQuestionById(ans.questionId);
+            return {
+                id: ans.id,
+                questionId: ans.questionId,
+                studentAnswer: ans.studentAnswer,
+                isCorrect: ans.isCorrect,
+                answeredAt: ans.answeredAt,
+                question: q
+                    ? {
+                          id: q.id,
+                          type: q.type,
+                          topic: q.topic,
+                          difficulty: q.difficulty,
+                          companyTags: q.companyTags,
+                          prompt: q.content.prompt,
+                          options: q.content.options,
+                          codeTemplate: q.content.codeTemplate,
+                          testCases: q.content.testCases,
+                          hint: q.content.hint,
+                          correctOption:
+                              (q.answerKey as any)?.correct_option ||
+                              (q.answerKey as any)?.correctOption ||
+                              "",
+                          explanation: (q.answerKey as any)?.explanation || ""
+                      }
+                    : null
+            };
+        })
+    );
+
+    return {
+        ...session,
+        answers: detailedAnswers
+    };
 }
 
 export async function getHistory(
@@ -266,5 +351,6 @@ export const assessmentService = {
     getNextQuestion,
     submitAnswer,
     finalizeSession,
+    getSessionDetails,
     getHistory
 };

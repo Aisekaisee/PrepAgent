@@ -5,15 +5,31 @@ import type { RoadmapGraphState, RoadmapDraft } from "../graphs/roadmap.state.js
 import { logger } from "../../utils/logger.js";
 
 const MAX_RETRIES = 2;
-const LLM_TIMEOUT_MS = 15_000;
+const LLM_TIMEOUT_MS = 60_000;
+
+const StudyMaterialSchema = z.object({
+  title: z.string().min(1),
+  url: z.string().min(1),
+  platform: z.string().min(1),
+  type: z.string().optional(),
+});
+
+const PracticeProblemSchema = z.object({
+  title: z.string().min(1),
+  url: z.string().min(1),
+  platform: z.string().min(1),
+  difficulty: z.string().optional(),
+});
 
 const RoadmapDraftSchema = z.object({
   weeks: z.array(
     z.object({
-      weekNo: z.number().int().positive(),
+      weekNo: z.number().int().min(1),
       topic: z.string().min(1),
       goals: z.array(z.string()).min(1).max(6),
-      resourceHints: z.array(z.string()).min(1).max(4),
+      resourceHints: z.array(z.string()).min(1).max(5),
+      studyMaterial: z.array(StudyMaterialSchema).optional().default([]),
+      practiceProblems: z.array(PracticeProblemSchema).optional().default([]),
     })
   ).min(1),
 });
@@ -34,22 +50,30 @@ async function generateWithTimeout(
 }
 
 /**
- * Calls the LLM to generate a week-by-week roadmap draft.
- * Retries up to MAX_RETRIES times on schema validation failure.
- * On persistent failure, sets an error flag and returns a minimal fallback roadmap.
+ * Calls the LLM to generate a week-by-week roadmap draft tailored to
+ * the student's preparation time, target companies, and subjects.
+ * Includes curated web study materials and practice problem links for each week.
  */
 export async function roadmapGenerationNode(
   state: RoadmapGraphState
 ): Promise<Partial<RoadmapGraphState>> {
   const gapList = state.gapList ?? [];
-  const prompt = buildRoadmapGenerationPrompt(gapList, state.timelineWeeks);
+  const prompt = buildRoadmapGenerationPrompt({
+    timelineWeeks: state.timelineWeeks,
+    targetCompanies: state.targetCompanies,
+    technicalSubjects: state.technicalSubjects,
+    programmingSkills: state.programmingSkills,
+    education: state.education,
+    gapList,
+  });
 
   let lastError: string | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      logger.info({ attempt, timelineWeeks: state.timelineWeeks }, "Initiating LLM roadmap generation");
       const roadmapDraft = await generateWithTimeout(prompt);
-      logger.info({ attempt, weeks: roadmapDraft.weeks.length }, "Roadmap draft generated");
+      logger.info({ attempt, weeks: roadmapDraft.weeks.length }, "Roadmap draft generated successfully with resources");
       return {
         roadmapDraft,
         retryCount: attempt,
@@ -60,16 +84,78 @@ export async function roadmapGenerationNode(
     }
   }
 
-  // Graceful degradation — return a minimal fallback instead of crashing
+  // Graceful degradation — return a dynamic profile-matched fallback instead of crashing
   logger.error({ userId: state.userId, error: lastError }, "Roadmap generation failed after all retries");
 
+  const topicsPool = [
+    ...gapList.map((g) => g.topic),
+    ...(state.technicalSubjects ?? []),
+    ...(state.programmingSkills?.map((s) => `${s} Problem Solving & Algorithms`) ?? []),
+    "System Design & Architecture",
+    "Company Mock Interviews & Behavioral Prep",
+  ];
+  const uniqueTopics = Array.from(new Set(topicsPool)).filter(Boolean);
+  const targetCompStr = state.targetCompanies?.length > 0 ? state.targetCompanies.join(", ") : "Tech";
+
   const fallbackDraft: RoadmapDraft = {
-    weeks: gapList.slice(0, state.timelineWeeks).map((gap, idx) => ({
-      weekNo: idx + 1,
-      topic: gap.topic,
-      goals: [`Study ${gap.topic} fundamentals`, `Practice ${gap.topic} problems`],
-      resourceHints: [`${gap.topic} tutorial`, `LeetCode ${gap.topic}`],
-    })),
+    weeks: Array.from({ length: state.timelineWeeks }, (_, idx) => {
+      const topic = uniqueTopics[idx % uniqueTopics.length] || `Interview Preparation Pillar ${idx + 1}`;
+      const encodedTopic = encodeURIComponent(topic);
+      return {
+        weekNo: idx + 1,
+        topic: `${topic}`,
+        goals: [
+          `Master fundamental and advanced patterns of ${topic}`,
+          `Solve 10+ standard problems targeting ${targetCompStr} interview standards`,
+          `Perform time-boxed mock coding and test edge cases thoroughly`,
+        ],
+        resourceHints: [
+          `${topic} Interview Patterns`,
+          `LeetCode Curated ${topic}`,
+          `${targetCompStr} Question Archive`,
+        ],
+        studyMaterial: [
+          {
+            title: `${topic} In-Depth Tutorial & Guide`,
+            url: `https://www.geeksforgeeks.org/${encodedTopic.toLowerCase()}/`,
+            platform: "GeeksforGeeks",
+            type: "Article",
+          },
+          {
+            title: "NeetCode Roadmap & DSA Patterns",
+            url: "https://neetcode.io/practice",
+            platform: "NeetCode",
+            type: "Curated Guide",
+          },
+          {
+            title: "System Design & Architecture Primer",
+            url: "https://github.com/donnemartin/system-design-primer",
+            platform: "GitHub",
+            type: "Documentation",
+          },
+        ],
+        practiceProblems: [
+          {
+            title: `${topic} Core Problem Set`,
+            url: `https://leetcode.com/problemset/all/?search=${encodedTopic}`,
+            platform: "LeetCode",
+            difficulty: "Medium",
+          },
+          {
+            title: `${targetCompStr} Interview Tagged Questions`,
+            url: `https://leetcode.com/problemset/all/?search=${encodeURIComponent(state.targetCompanies?.[0] || "google")}`,
+            platform: "LeetCode",
+            difficulty: "Hard",
+          },
+          {
+            title: "HackerRank Data Structures & Algorithms",
+            url: "https://www.hackerrank.com/domains/algorithms",
+            platform: "HackerRank",
+            difficulty: "Medium",
+          },
+        ],
+      };
+    }),
   };
 
   return {

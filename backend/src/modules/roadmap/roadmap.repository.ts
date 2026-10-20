@@ -43,14 +43,30 @@ export async function findRoadmapWithItems(
   );
   if (roadmapResult.rows.length === 0) return null;
 
+  const roadmap = mapRoadmapRow(roadmapResult.rows[0]);
   const itemsResult = await db.query(
     `SELECT * FROM roadmap_items WHERE roadmap_id = $1 ORDER BY week_no ASC`,
     [roadmapId]
   );
 
+  const weeksMap = new Map<number, any>(
+    (roadmap.weeks ?? []).map((w: any) => [w.weekNo, w])
+  );
+
+  const items = itemsResult.rows.map((row) => {
+    const item = mapItemRow(row);
+    const weekData = weeksMap.get(item.weekNo);
+    return {
+      ...item,
+      studyMaterial: weekData?.studyMaterial ?? [],
+      practiceProblems: weekData?.practiceProblems ?? [],
+      resourceHints: weekData?.resourceHints ?? [],
+    };
+  });
+
   return {
-    roadmap: mapRoadmapRow(roadmapResult.rows[0]),
-    items: itemsResult.rows.map(mapItemRow),
+    roadmap,
+    items,
   };
 }
 
