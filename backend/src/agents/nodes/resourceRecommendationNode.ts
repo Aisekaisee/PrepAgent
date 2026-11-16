@@ -21,7 +21,15 @@ export async function resourceRecommendationNode(
     collection = await getResourcesCollection();
   } catch (err) {
     logger.warn({ err }, "ChromaDB unavailable — skipping resource recommendations");
-    return { roadmap: { ...state.roadmap!, weeks: draft.weeks } as any };
+    return {
+      roadmap: {
+        roadmapId: "",
+        userId: state.userId,
+        version: 1,
+        generatedAt: new Date(),
+        weeks: draft.weeks.map((w) => ({ ...w, resourceRefs: [] })),
+      },
+    };
   }
 
   const enrichedWeeks = await Promise.all(

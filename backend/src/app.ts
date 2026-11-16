@@ -13,6 +13,7 @@ import { assessmentRouter } from "./modules/assessments/assessment.routes.js";
 import { skillGapRouter } from "./modules/skill-gap/skill-gap.routes.js";
 import { roadmapRouter } from "./modules/roadmap/roadmap.routes.js";
 import { resourcesRouter } from "./modules/resources/resources.routes.js";
+import { chatRouter } from "./modules/chat/chat.routes.js";
 
 export const app = express();
 
@@ -55,6 +56,7 @@ app.use("/api/v1/assessments", assessmentRouter);
 app.use("/api/v1/skill-gap", skillGapRouter);
 app.use("/api/v1/roadmap", roadmapRouter);
 app.use("/api/v1/resources", resourcesRouter);
+app.use("/api/v1/chat", chatRouter);
 
 // 404
 app.use((_req, res) => {

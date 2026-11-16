@@ -14,6 +14,7 @@ const envSchema = z.object({
     JWT_REFRESH_SECRET: z.string().min(16),
 
     GEMINI_API_KEY: z.string().optional(),
+    GEMINI_MODEL: z.string().optional().default("gemini-3.5-flash-lite"),
     OPENAI_API_KEY: z.string().optional(),
 
     SENDGRID_API_KEY: z.string().optional(),

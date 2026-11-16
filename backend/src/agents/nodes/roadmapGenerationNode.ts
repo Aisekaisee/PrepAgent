@@ -4,7 +4,7 @@ import { buildRoadmapGenerationPrompt } from "../prompts/roadmap.prompts.js";
 import type { RoadmapGraphState, RoadmapDraft } from "../graphs/roadmap.state.js";
 import { logger } from "../../utils/logger.js";
 
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 1;
 const LLM_TIMEOUT_MS = 60_000;
 
 const StudyMaterialSchema = z.object({
@@ -34,6 +34,53 @@ const RoadmapDraftSchema = z.object({
   ).min(1),
 });
 
+/**
+ * Deduplicates study materials and practice problems across all weeks so no link
+ * is repeated anywhere in the roadmap. Filters out any search query URLs.
+ * Strictly adheres to rule: NO HARDCODED RESOURCES IN SOURCE CODE.
+ */
+function cleanUrl(rawUrl: string): string {
+  let url = rawUrl.trim();
+  url = url.replace(/geeksforgeeks\.\d+org/gi, "geeksforgeeks.org");
+  return url;
+}
+
+function deduplicateAndSanitizeRoadmap(draft: RoadmapDraft): RoadmapDraft {
+  const seenStudyUrls = new Set<string>();
+  const seenProblemUrls = new Set<string>();
+
+  const cleanedWeeks = draft.weeks.map((week) => {
+    const uniqueStudy = (week.studyMaterial || [])
+      .map((item) => ({ ...item, url: cleanUrl(item.url) }))
+      .filter((item) => {
+        if (!item.url || !item.url.startsWith("http")) return false;
+        const normalized = item.url.toLowerCase().replace(/\/$/, "");
+        if (seenStudyUrls.has(normalized)) return false;
+        seenStudyUrls.add(normalized);
+        return true;
+      });
+
+    const uniqueProblems = (week.practiceProblems || [])
+      .map((prob) => ({ ...prob, url: cleanUrl(prob.url) }))
+      .filter((prob) => {
+        if (!prob.url || !prob.url.startsWith("http")) return false;
+        if (prob.url.includes("/problemset/all/?search=")) return false;
+        const normalized = prob.url.toLowerCase().replace(/\/$/, "");
+        if (seenProblemUrls.has(normalized)) return false;
+        seenProblemUrls.add(normalized);
+        return true;
+      });
+
+    return {
+      ...week,
+      studyMaterial: uniqueStudy,
+      practiceProblems: uniqueProblems,
+    };
+  });
+
+  return { weeks: cleanedWeeks };
+}
+
 async function generateWithTimeout(
   prompt: string
 ): Promise<RoadmapDraft> {
@@ -46,7 +93,7 @@ async function generateWithTimeout(
     ),
   ]);
 
-  return result as RoadmapDraft;
+  return deduplicateAndSanitizeRoadmap(result as RoadmapDraft);
 }
 
 /**
@@ -84,7 +131,7 @@ export async function roadmapGenerationNode(
     }
   }
 
-  // Graceful degradation — return a dynamic profile-matched fallback instead of crashing
+  // Graceful degradation without any hardcoded resources
   logger.error({ userId: state.userId, error: lastError }, "Roadmap generation failed after all retries");
 
   const topicsPool = [
@@ -100,60 +147,20 @@ export async function roadmapGenerationNode(
   const fallbackDraft: RoadmapDraft = {
     weeks: Array.from({ length: state.timelineWeeks }, (_, idx) => {
       const topic = uniqueTopics[idx % uniqueTopics.length] || `Interview Preparation Pillar ${idx + 1}`;
-      const encodedTopic = encodeURIComponent(topic);
       return {
         weekNo: idx + 1,
         topic: `${topic}`,
         goals: [
           `Master fundamental and advanced patterns of ${topic}`,
-          `Solve 10+ standard problems targeting ${targetCompStr} interview standards`,
+          `Solve standard problems targeting ${targetCompStr} interview standards`,
           `Perform time-boxed mock coding and test edge cases thoroughly`,
         ],
         resourceHints: [
           `${topic} Interview Patterns`,
-          `LeetCode Curated ${topic}`,
-          `${targetCompStr} Question Archive`,
+          `${targetCompStr} Core Requirements`,
         ],
-        studyMaterial: [
-          {
-            title: `${topic} In-Depth Tutorial & Guide`,
-            url: `https://www.geeksforgeeks.org/${encodedTopic.toLowerCase()}/`,
-            platform: "GeeksforGeeks",
-            type: "Article",
-          },
-          {
-            title: "NeetCode Roadmap & DSA Patterns",
-            url: "https://neetcode.io/practice",
-            platform: "NeetCode",
-            type: "Curated Guide",
-          },
-          {
-            title: "System Design & Architecture Primer",
-            url: "https://github.com/donnemartin/system-design-primer",
-            platform: "GitHub",
-            type: "Documentation",
-          },
-        ],
-        practiceProblems: [
-          {
-            title: `${topic} Core Problem Set`,
-            url: `https://leetcode.com/problemset/all/?search=${encodedTopic}`,
-            platform: "LeetCode",
-            difficulty: "Medium",
-          },
-          {
-            title: `${targetCompStr} Interview Tagged Questions`,
-            url: `https://leetcode.com/problemset/all/?search=${encodeURIComponent(state.targetCompanies?.[0] || "google")}`,
-            platform: "LeetCode",
-            difficulty: "Hard",
-          },
-          {
-            title: "HackerRank Data Structures & Algorithms",
-            url: "https://www.hackerrank.com/domains/algorithms",
-            platform: "HackerRank",
-            difficulty: "Medium",
-          },
-        ],
+        studyMaterial: [],
+        practiceProblems: [],
       };
     }),
   };

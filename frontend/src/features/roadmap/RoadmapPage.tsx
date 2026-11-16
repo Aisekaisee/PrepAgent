@@ -23,58 +23,8 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { RoadmapGeneratorModal } from "./components/RoadmapGeneratorModal";
 import { roadmapApi } from "./api/roadmapApi";
 import { profileApi } from "../profile/api/profileApi";
-import type { Roadmap, RoadmapItemStatus, StudyMaterial, PracticeProblem } from "@/types/roadmap";
+import type { Roadmap, RoadmapItemStatus } from "@/types/roadmap";
 import type { Profile } from "@/types/profile";
-
-function getFallbackResources(topic: string, targetCompany?: string): {
-  studyMaterial: StudyMaterial[];
-  practiceProblems: PracticeProblem[];
-} {
-  const enc = encodeURIComponent(topic);
-  const comp = encodeURIComponent(targetCompany || "Google");
-  return {
-    studyMaterial: [
-      {
-        title: `${topic} Complete Concepts & Guide`,
-        url: `https://www.geeksforgeeks.org/${enc.toLowerCase()}/`,
-        platform: "GeeksforGeeks",
-        type: "Article",
-      },
-      {
-        title: "NeetCode Placement Patterns & Solutions",
-        url: "https://neetcode.io/practice",
-        platform: "NeetCode",
-        type: "Interactive Guide",
-      },
-      {
-        title: "System Design Primer & Architecture",
-        url: "https://github.com/donnemartin/system-design-primer",
-        platform: "GitHub",
-        type: "Documentation",
-      },
-    ],
-    practiceProblems: [
-      {
-        title: `${topic} Curated Problem Set`,
-        url: `https://leetcode.com/problemset/all/?search=${enc}`,
-        platform: "LeetCode",
-        difficulty: "Medium",
-      },
-      {
-        title: `${targetCompany || "Tier-1 Tech"} Interview Challenges`,
-        url: `https://leetcode.com/problemset/all/?search=${comp}`,
-        platform: "LeetCode",
-        difficulty: "Hard",
-      },
-      {
-        title: `HackerRank ${topic} Challenges`,
-        url: "https://www.hackerrank.com/domains/algorithms",
-        platform: "HackerRank",
-        difficulty: "Medium",
-      },
-    ],
-  };
-}
 
 export function RoadmapPage() {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
@@ -349,8 +299,8 @@ export function RoadmapPage() {
                   key={st}
                   onClick={() => setStatusFilter(st)}
                   className={`px-3 py-1 rounded-lg text-xs capitalize transition-colors cursor-pointer border ${statusFilter === st
-                      ? "bg-primary text-white border-primary"
-                      : "bg-secondary/50 text-muted-foreground border-border/60 hover:text-foreground"
+                    ? "bg-primary text-white border-primary"
+                    : "bg-secondary/50 text-muted-foreground border-border/60 hover:text-foreground"
                     }`}
                 >
                   {st}
@@ -363,29 +313,28 @@ export function RoadmapPage() {
           <div className="space-y-6">
             {filteredItems.map((item) => {
               const matchingWeek = roadmap?.weeks?.find((w) => w.weekNo === item.weekNo);
-              const fallback = getFallbackResources(item.topic, targetCompanies[0]);
               const studyMaterial =
                 item.studyMaterial && item.studyMaterial.length > 0
                   ? item.studyMaterial
                   : matchingWeek?.studyMaterial && matchingWeek.studyMaterial.length > 0
                     ? matchingWeek.studyMaterial
-                    : fallback.studyMaterial;
+                    : [];
 
               const practiceProblems =
                 item.practiceProblems && item.practiceProblems.length > 0
                   ? item.practiceProblems
                   : matchingWeek?.practiceProblems && matchingWeek.practiceProblems.length > 0
                     ? matchingWeek.practiceProblems
-                    : fallback.practiceProblems;
+                    : [];
 
               return (
                 <Card
                   key={item.id}
                   className={`border transition-all duration-200 ${item.status === "started"
-                      ? "border-blue-500/50 bg-card/95 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20"
-                      : item.status === "completed"
-                        ? "border-emerald-500/30 bg-card/70 opacity-95"
-                        : "border-border/70 bg-card/80"
+                    ? "border-blue-500/50 bg-card/95 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20"
+                    : item.status === "completed"
+                      ? "border-emerald-500/30 bg-card/70 opacity-95"
+                      : "border-border/70 bg-card/80"
                     }`}
                 >
                   <CardHeader className="pb-3">
@@ -445,8 +394,8 @@ export function RoadmapPage() {
                           >
                             <CheckCircle2
                               className={`h-4 w-4 shrink-0 mt-0.5 ${item.status === "completed"
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-blue-600 dark:text-blue-400"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-blue-600 dark:text-blue-400"
                                 }`}
                             />
                             <span
@@ -535,10 +484,10 @@ export function RoadmapPage() {
                                   {prob.difficulty && (
                                     <span
                                       className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${prob.difficulty.toLowerCase() === "easy"
-                                          ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
-                                          : prob.difficulty.toLowerCase() === "hard"
-                                            ? "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800"
-                                            : "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                                        ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+                                        : prob.difficulty.toLowerCase() === "hard"
+                                          ? "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800"
+                                          : "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
                                         }`}
                                     >
                                       {prob.difficulty}

@@ -134,7 +134,7 @@ export function ChatPage() {
   };
 
   // Helper to render markdown-like formatting (bold, code blocks, bullet points)
-  const formatContent = (content: string) => {
+  const formatContent = (content: string, isUser = false) => {
     // If empty streaming
     if (!content) {
       return (
@@ -164,7 +164,12 @@ export function ChatPage() {
           if (para.startsWith("- ") || para.startsWith("* ") || /^\d+\./.test(para)) {
             const listItems = para.split("\n");
             return (
-              <ul key={idx} className="space-y-1 my-1 pl-4 list-disc text-slate-200">
+              <ul
+                key={idx}
+                className={`space-y-1 my-1 pl-4 list-disc ${
+                  isUser ? "text-slate-200" : "text-black"
+                }`}
+              >
                 {listItems.map((li, i) => (
                   <li key={i}>{li.replace(/^[-*]\s+|\d+\.\s+/, "")}</li>
                 ))}
@@ -175,7 +180,11 @@ export function ChatPage() {
             return (
               <blockquote
                 key={idx}
-                className="pl-3 border-l-2 border-blue-400 text-blue-200 italic my-2 bg-blue-950/20 py-1 rounded-r"
+                className={`pl-3 border-l-2 border-blue-400 italic my-2 py-1 rounded-r ${
+                  isUser
+                    ? "text-blue-200 bg-blue-950/20"
+                    : "text-black bg-blue-950/10"
+                }`}
               >
                 {para.replace(/^>\s+/, "")}
               </blockquote>
@@ -183,7 +192,7 @@ export function ChatPage() {
           }
 
           return (
-            <p key={idx} className="text-slate-200">
+            <p key={idx} className={isUser ? "text-slate-200" : "text-black"}>
               {para}
             </p>
           );
@@ -243,7 +252,7 @@ export function ChatPage() {
                   className={`relative max-w-[85%] sm:max-w-[78%] rounded-2xl p-4 shadow-sm group ${
                     isUser
                       ? "bg-primary text-primary-foreground rounded-tr-xs"
-                      : "bg-secondary/70 border border-border/80 rounded-tl-xs"
+                      : "bg-secondary/70 border border-border/80 rounded-tl-xs text-black"
                   }`}
                 >
                   {!isUser && (
@@ -265,7 +274,7 @@ export function ChatPage() {
                     </div>
                   )}
 
-                  {formatContent(msg.content)}
+                  {formatContent(msg.content, isUser)}
 
                   <div className="text-[10px] text-muted-foreground/60 text-right mt-1">
                     {new Date(msg.createdAt).toLocaleTimeString([], {
